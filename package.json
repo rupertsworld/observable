@@ -1,7 +1,7 @@
 {
-  "name": "@rupertsworld/html-element",
+  "name": "@rupertsworld/observable",
   "version": "0.1.0",
-  "description": "Typed HTMLElement with reflected properties and typed events",
+  "description": "Observable properties mixin and ObservableElement with attribute reflection",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

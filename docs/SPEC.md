@@ -1,213 +1,193 @@
-# HTMLElement
+# @rupertsworld/observable
 
-Property-first `HTMLElement` with typed events and reactive property observation.
+A minimal library for observable properties with change callbacks.
 
-## Install
+## Overview
 
-```bash
-npm install @rupertsworld/html-element
+Three layers:
+
+1. **`observable(Base)`** — Mixin that adds property interception and `propertyChangedCallback` to any class
+2. **`Observable`** — `observable(EventTarget)` for convenience
+3. **`ObservableElement`** — `observable(HTMLElement)` with attribute reflection
+
+## Layer 1: `observable(Base)`
+
+The mixin intercepts property setters for properties listed in `static observedProperties` and calls `propertyChangedCallback(name, oldValue, newValue)` on change.
+
+```typescript
+import { observable } from "@rupertsworld/observable";
+
+class Counter extends observable(Object) {
+  static observedProperties = ["count"];
+
+  count = 0;
+
+  propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+    console.log(`${name} changed from ${oldValue} to ${newValue}`);
+  }
+}
+
+const c = new Counter();
+c.count = 5; // logs: "count changed from 0 to 5"
 ```
 
-## Usage
+### Behavior
 
-```ts
-import { HTMLElement } from "@rupertsworld/html-element";
+- Only fires callback when value actually changes (`Object.is` comparison)
+- Does not fire for initial field initializer values
+- Callback receives property name, old value, and new value
 
-class MyCounter extends HTMLElement {
+### Config
+
+`static observedProperties` is an array of property names:
+
+```typescript
+static observedProperties = ["count", "name", "data"];
+```
+
+## Layer 2: `Observable`
+
+Convenience class: `observable(EventTarget)`.
+
+```typescript
+import { Observable } from "@rupertsworld/observable";
+
+class Counter extends Observable {
+  static observedProperties = ["count"];
+
+  count = 0;
+
+  propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+    this.dispatchEvent(new CustomEvent("change", {
+      detail: { property: name, oldValue, newValue }
+    }));
+  }
+}
+
+const c = new Counter();
+c.addEventListener("change", (e) => console.log(e.detail));
+c.count = 5; // fires change event
+```
+
+## Layer 3: `ObservableElement`
+
+Extends `observable(HTMLElement)` with attribute reflection.
+
+```typescript
+import { ObservableElement } from "@rupertsworld/observable";
+
+class CounterElement extends ObservableElement {
   static observedProperties = {
     count: { type: Number, attribute: "count" },
-    disabled: { type: Boolean, attribute: "disabled" },
-    data: { type: Object },
+    data: { attribute: false }, // observed but no reflection
   };
 
   count = 0;
-  disabled = false;
-  data: object | null = null;
-
-  connectedCallback() {
-    this.render();
-    this.addEventListener("click", this.handleClick);
-  }
+  data = {};
 
   propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
     this.render();
   }
-
-  handleClick = () => {
-    if (this.disabled) return;
-    this.count++;
-  };
-
-  render() {
-    this.innerHTML = `
-      <button ${this.disabled ? "disabled" : ""}>
-        Count: ${this.count}
-      </button>
-    `;
-  }
 }
 
-customElements.define("my-counter", MyCounter);
+customElements.define("x-counter", CounterElement);
 ```
 
-## API
+### Config
 
-### `HTMLElement<TEvents>`
+`static observedProperties` is an object mapping property names to config:
 
-A typed replacement for native `HTMLElement`.
-
-- `addEventListener` and `removeEventListener` are typed by event `type`
-- `dispatchEvent` only accepts events from the declared union
-- Runtime behavior remains native `HTMLElement`
-
-### `static observedProperties`
-
-Declares which properties are observed for changes:
-
-```ts
+```typescript
 static observedProperties = {
   count: { type: Number, attribute: "count" },
+  name: { type: String, attribute: "name" },
   disabled: { type: Boolean, attribute: "disabled" },
-  data: { type: Object },
+  data: { attribute: false }, // no attribute reflection
 };
 ```
 
-Each entry is `{ type, attribute? }`.
+Array form also supported (equivalent to `{ attribute: false }` for each):
 
-- `type` — constructor used for coercion (`String`, `Number`, `Boolean`, `Object`)
-- `attribute` — optional attribute name to sync with
-
-### Built-in coercion types
-
-| Type | From attribute | To attribute |
-|------|----------------|--------------|
-| `String` | Raw string value | `String(value)` |
-| `Number` | `Number(raw)` | `String(value)` |
-| `Boolean` | `true` if present (except `"false"` → `false`) | `true` → `""`, `false` → remove attribute |
-| `Object` | `JSON.parse(raw)` | `JSON.stringify(value)` |
-
-### Property and attribute sync
-
-When `attribute` is specified, property and attribute stay in sync:
-
-- Markup `<my-el count="5">` sets `this.count = 5`
-- `this.count = 10` updates `getAttribute("count")` to `"10"`
-- `setAttribute("count", "15")` updates `this.count` to `15`
-- Circular updates are guarded internally
-
-```ts
-el.count = 16;
-el.count;                    // 16
-el.getAttribute("count");    // "16"
-
-el.setAttribute("count", "7");
-el.count;                    // 7
+```typescript
+static observedProperties = ["data", "loading"];
 ```
 
-### `propertyChangedCallback`
+### Property Config
 
-```ts
-propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown): void
+| Key | Type | Description |
+|-----|------|-------------|
+| `type` | `String \| Number \| Boolean \| Object` | Constructor for attribute coercion. Required if `attribute` is set. |
+| `attribute` | `string \| false` | Attribute name to sync with, or `false` for no reflection. |
+
+### Attribute Reflection
+
+When `attribute` is set:
+
+- Property changes sync to the attribute (serialized via `type`)
+- Attribute changes sync to the property (coerced via `type`)
+- Callback fires once per change, not twice
+
+### Type Coercion
+
+| Type | Attribute → Property | Property → Attribute |
+|------|---------------------|---------------------|
+| `String` | as-is | `String(value)` |
+| `Number` | `Number(value)` | `String(value)` |
+| `Boolean` | `true` if present and not `"false"` | `""` if true, `"false"` if false |
+| `Object` | `JSON.parse(value)` | `JSON.stringify(value)` |
+
+## Exports
+
+```typescript
+// Mixin
+export function observable<T extends Constructor>(Base: T): T & ObservableMixin;
+
+// Convenience classes
+export class Observable extends observable(EventTarget) {}
+export class ObservableElement extends observable(globalThis.HTMLElement) {}
+
+// Types
+export type ObservablePropertyConfig = { /* ... */ };
+export type ObservablePropertyMap = Record<string, ObservablePropertyConfig>;
+export type ObservedProperties = string[] | ObservablePropertyMap;
 ```
 
-Called when an observed property changes.
+## Invariants
 
-**Fires:**
-- On runtime property writes (`this.count = 10`)
-- On attribute-driven updates (`setAttribute("count", "10")`)
+### All layers
 
-**Does not fire:**
-- For field initializers (`count = 0`)
-- When the new value equals the old value (`Object.is` comparison)
+- Only fires callback when value actually changes (`Object.is` comparison)
+- Does not fire callback for field initializers
+- Observed properties cannot define custom getters/setters (throws at class definition time)
 
-### Non-attribute observed properties
+### `ObservableElement`
 
-Properties without `attribute` are still observed and trigger `propertyChangedCallback`, but do not sync with the DOM:
+`ObservableElement` is a drop-in replacement for `HTMLElement`. If you don't use `observedProperties`, it behaves identically to native `HTMLElement`.
 
-```ts
-static observedProperties = {
-  data: { type: Object },  // no attribute
-};
-```
+- User-defined `attributeChangedCallback` is preserved and called after internal attribute handling
+- User-defined `static get observedAttributes()` works normally — extend via `[...super.observedAttributes, "my-attr"]`
+- All native `HTMLElement` lifecycle callbacks work unchanged (`connectedCallback`, `disconnectedCallback`, etc.)
+- Circular attribute/property updates are guarded internally — changing a property updates the attribute without re-triggering the property setter, and vice versa
+- Markup attributes are reflected to properties on construction: `<my-el count="5">` sets `this.count = 5`
 
-### Custom accessors
+### Typed events (`ObservableElement<TEvents>`)
 
-If a property is in `observedProperties`, you **cannot** define a custom getter/setter for it. This will throw an error at registration time:
+The generic parameter accepts a union of `Event` types with a `type` literal. This provides type-safe `addEventListener`, `removeEventListener`, and `dispatchEvent`:
 
-```ts
-// ERROR: throws at customElements.define()
-class Bad extends HTMLElement {
-  static observedProperties = {
-    value: { type: String, attribute: "value" },
-  };
-
-  get value() { return this.#value; }
-  set value(v) { this.#value = v; }
-}
-```
-
-Use `propertyChangedCallback` for side effects instead.
-
-### Custom `attributeChangedCallback`
-
-You can define your own `attributeChangedCallback` for attributes **not** managed by `observedProperties`. The library handles observed attributes first, then calls your callback:
-
-```ts
-class MyElement extends HTMLElement {
-  static observedProperties = {
-    count: { type: Number, attribute: "count" },
-  };
-
-  static get observedAttributes() {
-    return [...super.observedAttributes, "mode"];
-  }
-
-  count = 0;
-  #mode = "default";
-
-  get mode() { return this.#mode; }
-  set mode(v) { this.#mode = v; }
-
-  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
-    if (name === "mode") {
-      this.mode = newValue ?? "default";
-    }
-  }
-}
-```
-
-## TypeScript
-
-Use normal class field syntax:
-
-```ts
-class MySlider extends HTMLElement {
-  static observedProperties = {
-    count: { type: Number, attribute: "count" },
-    data: { type: Object },
-  };
-
-  count = 0;
-  data: object | null = null;
-}
-```
-
-No `declare` needed.
-
-## Typed events
-
-The generic parameter accepts any union of `Event` types with a `type` literal:
-
-```ts
+```typescript
 class CountChangeEvent extends Event {
-  type = "count-change";
+  type = "count-change" as const;
   constructor(public count: number) {
     super("count-change");
   }
 }
 
-class MyCounter extends HTMLElement<CountChangeEvent> {
-  // ...
+class MyCounter extends ObservableElement<CountChangeEvent> {
+  static observedProperties = {
+    count: { type: Number, attribute: "count" },
+  };
+
+  count = 0;
 
   propertyChangedCallback(name: string) {
     if (name === "count") {
@@ -217,24 +197,7 @@ class MyCounter extends HTMLElement<CountChangeEvent> {
 }
 
 const counter = document.querySelector("my-counter") as MyCounter;
-
 counter.addEventListener("count-change", (e) => {
   console.log(e.count); // typed as number
 });
 ```
-
-For multiple event types, use a union:
-
-```ts
-type MyEvents = CountChangeEvent | ResetEvent;
-
-class MyCounter extends HTMLElement<MyEvents> {
-  // ...
-}
-```
-
-For convenience creating typed events, see [`@rupertsworld/event-target`](https://github.com/rupertsworld/event-target) and its `defineEvent` helper.
-
-## Environment support
-
-Works in browsers with native custom elements (all modern browsers).

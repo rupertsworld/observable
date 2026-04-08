@@ -1,9 +1,138 @@
 import { describe, expect, test } from "vitest";
-import { HTMLElement } from "../src/index";
+import { ObservableElement } from "../src/index";
 
-describe("HTMLElement", () => {
+describe("ObservableElement", () => {
+  test("multiple component classes with different properties do not interfere", async () => {
+    class ComponentA extends ObservableElement<Event> {
+      static observedProperties = {
+        foo: { type: String, attribute: "foo" },
+        shared: { type: Number, attribute: "shared" },
+      };
+
+      foo = "default-a";
+      shared = 1;
+      callsA: Array<[string, unknown, unknown]> = [];
+
+      propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+        this.callsA.push([name, oldValue, newValue]);
+      }
+    }
+
+    class ComponentB extends ObservableElement<Event> {
+      static observedProperties = {
+        bar: { type: String, attribute: "bar" },
+        shared: { type: String, attribute: "shared" }, // same name, different type!
+      };
+
+      bar = "default-b";
+      shared = "one";
+      callsB: Array<[string, unknown, unknown]> = [];
+
+      propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+        this.callsB.push([name, oldValue, newValue]);
+      }
+    }
+
+    customElements.define("x-isolation-a", ComponentA);
+    customElements.define("x-isolation-b", ComponentB);
+
+    const elA = document.createElement("x-isolation-a") as ComponentA;
+    const elB = document.createElement("x-isolation-b") as ComponentB;
+    await Promise.resolve();
+
+    // Verify initial values are isolated
+    expect(elA.foo).toBe("default-a");
+    expect(elA.shared).toBe(1);
+    expect(elB.bar).toBe("default-b");
+    expect(elB.shared).toBe("one");
+
+    // Mutate A's properties
+    elA.foo = "changed-a";
+    elA.shared = 42;
+
+    // Mutate B's properties
+    elB.bar = "changed-b";
+    elB.shared = "forty-two";
+
+    // Verify A's state is correct
+    expect(elA.foo).toBe("changed-a");
+    expect(elA.shared).toBe(42);
+    expect(elA.getAttribute("foo")).toBe("changed-a");
+    expect(elA.getAttribute("shared")).toBe("42"); // coerced as Number
+
+    // Verify B's state is correct and unaffected by A
+    expect(elB.bar).toBe("changed-b");
+    expect(elB.shared).toBe("forty-two");
+    expect(elB.getAttribute("bar")).toBe("changed-b");
+    expect(elB.getAttribute("shared")).toBe("forty-two"); // coerced as String
+
+    // Verify callbacks fired correctly for each
+    expect(elA.callsA).toEqual([
+      ["foo", "default-a", "changed-a"],
+      ["shared", 1, 42],
+    ]);
+    expect(elB.callsB).toEqual([
+      ["bar", "default-b", "changed-b"],
+      ["shared", "one", "forty-two"],
+    ]);
+
+    // Verify attribute changes are isolated
+    elA.setAttribute("shared", "100");
+    elB.setAttribute("shared", "hundred");
+
+    expect(elA.shared).toBe(100); // coerced to Number
+    expect(elB.shared).toBe("hundred"); // stays String
+  });
+
+  test("multiple instances of same component have isolated state", async () => {
+    class MultiInstance extends ObservableElement<Event> {
+      static observedProperties = {
+        value: { type: Number, attribute: "value" },
+      };
+
+      value = 0;
+      calls: Array<[string, unknown, unknown]> = [];
+
+      propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+        this.calls.push([name, oldValue, newValue]);
+      }
+    }
+
+    customElements.define("x-multi-instance", MultiInstance);
+
+    const el1 = document.createElement("x-multi-instance") as MultiInstance;
+    const el2 = document.createElement("x-multi-instance") as MultiInstance;
+    const el3 = document.createElement("x-multi-instance") as MultiInstance;
+    await Promise.resolve();
+
+    // Set different values on each
+    el1.value = 10;
+    el2.value = 20;
+    el3.value = 30;
+
+    // Verify each instance has its own state
+    expect(el1.value).toBe(10);
+    expect(el2.value).toBe(20);
+    expect(el3.value).toBe(30);
+
+    expect(el1.getAttribute("value")).toBe("10");
+    expect(el2.getAttribute("value")).toBe("20");
+    expect(el3.getAttribute("value")).toBe("30");
+
+    // Verify callbacks are instance-specific
+    expect(el1.calls).toEqual([["value", 0, 10]]);
+    expect(el2.calls).toEqual([["value", 0, 20]]);
+    expect(el3.calls).toEqual([["value", 0, 30]]);
+
+    // Mutate one, verify others unchanged
+    el2.value = 200;
+    expect(el1.value).toBe(10);
+    expect(el2.value).toBe(200);
+    expect(el3.value).toBe(30);
+  });
+
   test("does not fire propertyChangedCallback for field initializers", async () => {
-    class InitEl extends HTMLElement<Event> {
+    class InitEl extends ObservableElement<Event> {
       static observedProperties = {
         count: { type: Number, attribute: "count" },
       };
@@ -23,7 +152,7 @@ describe("HTMLElement", () => {
   });
 
   test("fires propertyChangedCallback for observed property writes", async () => {
-    class PropWriteEl extends HTMLElement<Event> {
+    class PropWriteEl extends ObservableElement<Event> {
       static observedProperties = {
         count: { type: Number, attribute: "count" },
       };
@@ -46,7 +175,7 @@ describe("HTMLElement", () => {
   });
 
   test("syncs attribute changes back to property and fires callback once", async () => {
-    class AttrSyncEl extends HTMLElement<Event> {
+    class AttrSyncEl extends ObservableElement<Event> {
       static observedProperties = {
         count: { type: Number, attribute: "count" },
       };
@@ -69,7 +198,7 @@ describe("HTMLElement", () => {
   });
 
   test("does not fire for unobserved property writes", async () => {
-    class UnobservedEl extends HTMLElement<Event> {
+    class UnobservedEl extends ObservableElement<Event> {
       static observedProperties = {
         count: { type: Number, attribute: "count" },
       };
@@ -92,7 +221,7 @@ describe("HTMLElement", () => {
   });
 
   test("supports non-attribute observed properties", async () => {
-    class DataEl extends HTMLElement<Event> {
+    class DataEl extends ObservableElement<Event> {
       static observedProperties = {
         data: { type: Object },
       };
@@ -114,7 +243,7 @@ describe("HTMLElement", () => {
   });
 
   test("coerces booleans through attribute bridge", async () => {
-    class BoolEl extends HTMLElement<Event> {
+    class BoolEl extends ObservableElement<Event> {
       static observedProperties = {
         disabled: { type: Boolean, attribute: "disabled" },
       };
@@ -142,7 +271,7 @@ describe("HTMLElement", () => {
   });
 
   test("throws when observed property defines a custom accessor", () => {
-    class CustomAccessorEl extends HTMLElement<Event> {
+    class CustomAccessorEl extends ObservableElement<Event> {
       static observedProperties = {
         value: { type: String, attribute: "value" },
       };
@@ -162,7 +291,7 @@ describe("HTMLElement", () => {
   });
 
   test("supports non-overlapping custom property + attributeChangedCallback with observed properties", async () => {
-    class MixedEl extends HTMLElement<Event> {
+    class MixedEl extends ObservableElement<Event> {
       static observedProperties = {
         count: { type: Number, attribute: "count" },
       };

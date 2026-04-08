@@ -1,6 +1,6 @@
-import { HTMLElement } from "../../dist/index.js";
+import { ObservableElement } from "../../src/index";
 
-export class Counter extends HTMLElement {
+export class Counter extends ObservableElement {
   static observedProperties = {
     count: { type: Number, attribute: "count" },
     disabled: { type: Boolean, attribute: "disabled" },

@@ -1,5 +1,7 @@
-export { BaseElement as HTMLElement } from "./html-element";
+export { Observable, observable } from "./observable";
+export { ObservableElement } from "./observable-element";
 export type {
-  ObservedPropertyConfig,
-  ObservedPropertyMap,
-} from "./html-element";
+  ObservablePropertyConfig,
+  ObservablePropertyMap,
+  ObservedProperties,
+} from "./observable-element";

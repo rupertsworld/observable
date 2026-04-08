@@ -1,25 +1,77 @@
-# @rupertsworld/html-element
+# @rupertsworld/observable
 
-A drop-in `HTMLElement` base class with reactive properties and typed events.
+Observable properties for classes and custom elements.
 
 ## Why?
 
-Writing custom elements involves boilerplate: manual getters/setters, attribute observation, type coercion, and keeping properties and attributes in sync. This library handles all of that automatically while staying close to the native API.
+Reacting to property changes typically means writing boilerplate getters/setters or remembering to call update functions. This library provides a declarative `observedProperties` pattern that works on any class — and extends naturally to custom elements with attribute reflection.
 
 ## Install
 
 ```bash
-npm install @rupertsworld/html-element
+npm install @rupertsworld/observable
 ```
 
-## Quick Example
+## Quick Examples
+
+### Any class with `observable(Base)`
 
 ```ts
-import { HTMLElement } from "@rupertsworld/html-element";
+import { observable } from "@rupertsworld/observable";
 
-class MyCounter extends HTMLElement {
+class Model extends observable(Object) {
+  static observedProperties = ["data"];
+
+  data = null;
+
+  propertyChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+    console.log(`${name} changed from`, oldValue, "to", newValue);
+  }
+}
+
+const model = new Model();
+model.data = { foo: 1 }; // logs: "data changed from null to { foo: 1 }"
+```
+
+### `Observable` with typed events
+
+`Observable` is `observable(EventTarget)` — use it when you want to dispatch events:
+
+```ts
+import { Observable } from "@rupertsworld/observable";
+
+class ChangeEvent extends Event {
+  type = "change" as const;
+  constructor(public property: string, public value: unknown) {
+    super("change");
+  }
+}
+
+class Counter extends Observable<ChangeEvent> {
+  static observedProperties = ["count"];
+
+  count = 0;
+
+  propertyChangedCallback(name: string, _oldValue: unknown, newValue: unknown) {
+    this.dispatchEvent(new ChangeEvent(name, newValue));
+  }
+}
+
+const counter = new Counter();
+counter.addEventListener("change", (e) => {
+  console.log(e.property, e.value); // typed
+});
+counter.count = 5; // logs: "count" 5
+```
+
+### Custom elements with `ObservableElement`
+
+```ts
+import { ObservableElement } from "@rupertsworld/observable";
+
+class MyCounter extends ObservableElement {
   static observedProperties = {
-    count: { attribute: "count", type: Number },
+    count: { type: Number, attribute: "count" },
   };
 
   count = 0;
@@ -60,7 +112,7 @@ class CountChangeEvent extends Event {
   type = "count-change";
 }
 
-class MyCounter extends HTMLElement<CountChangeEvent> {
+class MyCounter extends ObservableElement<CountChangeEvent> {
   // ...
 
   propertyChangedCallback(name: string) {
@@ -82,15 +134,16 @@ counter.addEventListener("countchange", (e) => {
 
 ## Features
 
+- **Works on any class** — `observable(Base)` mixin works with `Object`, `EventTarget`, or any base
 - **Reactive properties** — declare once, get automatic getters/setters
-- **Attribute sync** — properties and attributes stay in sync
+- **Attribute sync** — `ObservableElement` keeps properties and attributes in sync
 - **Type coercion** — `Number`, `Boolean`, `String`, `Object` built-in
 - **Typed events** — optional strong typing for `addEventListener`/`dispatchEvent`
-- **Familiar API** — everything else works like native `HTMLElement`
+- **Drop-in replacement** — `ObservableElement` behaves exactly like native `HTMLElement`
 
 ## Documentation
 
-See [docs/spec.md](docs/spec.md) for the full API reference.
+See [docs/SPEC.md](docs/SPEC.md) for the full API reference.
 
 ## License
 
