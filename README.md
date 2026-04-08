@@ -35,33 +35,30 @@ model.data = { foo: 1 }; // logs: "data changed from null to { foo: 1 }"
 
 ### `Observable` with typed events
 
-`Observable` is `observable(EventTarget)` — use it when you want to dispatch events:
+`Observable` is a default observable class you can inherit from, that also supports a typed EventTarget API out of the box.
 
 ```ts
 import { Observable } from "@rupertsworld/observable";
 
 class ChangeEvent extends Event {
-  type = "change" as const;
-  constructor(public property: string, public value: unknown) {
-    super("change");
-  }
+  type = "change"
 }
 
 class Counter extends Observable<ChangeEvent> {
   static observedProperties = ["count"];
 
-  count = 0;
+  count: number = 0;
 
-  propertyChangedCallback(name: string, _oldValue: unknown, newValue: unknown) {
-    this.dispatchEvent(new ChangeEvent(name, newValue));
+  propertyChangedCallback() {
+    this.dispatchEvent(new ChangeEvent('change'));
   }
 }
 
 const counter = new Counter();
 counter.addEventListener("change", (e) => {
-  console.log(e.property, e.value); // typed
+  console.log('Counter changed!');
 });
-counter.count = 5; // logs: "count" 5
+counter.count = 5; // logs: 'Counter changed!'
 ```
 
 ### Custom elements with `ObservableElement`
