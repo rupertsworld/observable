@@ -90,7 +90,7 @@ counter.addEventListener("countchange", (e) => {
 
 ## Documentation
 
-See [docs/SPEC.md](docs/SPEC.md) for the full API reference.
+See [docs/spec.md](docs/spec.md) for the full API reference.
 
 ## License
 
