@@ -19,7 +19,7 @@ import { HTMLElement } from "@rupertsworld/html-element";
 
 class MyCounter extends HTMLElement {
   static observedProperties = {
-    count: { type: Number, attribute: "count" },
+    count: { attribute: "count", type: Number },
   };
 
   count = 0;
