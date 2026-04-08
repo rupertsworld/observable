@@ -41,7 +41,7 @@ model.data = { foo: 1 }; // logs: "data changed from null to { foo: 1 }"
 import { Observable } from "@rupertsworld/observable";
 
 class ChangeEvent extends Event {
-  type = "change"
+  type = "change";
 }
 
 class Counter extends Observable<ChangeEvent> {
