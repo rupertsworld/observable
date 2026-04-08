@@ -1,0 +1,26 @@
+{
+  "name": "@rupertsworld/html-element",
+  "version": "0.1.0",
+  "description": "Typed HTMLElement with reflected properties and typed events",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --environment happy-dom",
+    "example": "vite --config example/vite.config.js"
+  },
+  "devDependencies": {
+    "happy-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  },
+  "dependencies": {
+    "@rupertsworld/event-target": "^0.1.1"
+  }
+}
