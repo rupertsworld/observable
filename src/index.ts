@@ -1,7 +1,7 @@
-export { Observable, observable } from "./observable";
-export { ObservableElement } from "./observable-element";
+export { Observable, observable } from "./observable.js";
+export { ObservableElement } from "./observable-element.js";
 export type {
   ObservablePropertyConfig,
   ObservablePropertyMap,
   ObservedProperties,
-} from "./observable-element";
+} from "./observable-element.js";
